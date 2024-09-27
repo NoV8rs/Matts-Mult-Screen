@@ -1,6 +1,5 @@
-﻿using System.Collections.Generic;
-using UnityEditor.Build.Content;
-using UnityEditor.SearchService;
+﻿using System.Collections;
+using System.Collections.Generic;
 using UnityEngine;
 using UnityEngine.SceneManagement;
 
@@ -16,11 +15,9 @@ public class LevelManager : MonoBehaviour
     public GameManager _gameManager;
     public PlayerManager _playerManager;
     public UIManager _uIManager;
-
-    public int NextScene;
-    //public List<>
-    public AsyncOperation sceneLoad;
-
+    
+    public int nextScene;
+    public List<AsyncOperation> scenesToLoad = new List<AsyncOperation>();
 
     public void Awake()
     {
@@ -32,30 +29,30 @@ public class LevelManager : MonoBehaviour
         if (_uIManager == null) { Debug.LogError("UIManager is not assigned to LevelManager in the inspector!"); }
     }
 
-    //void LoadScene(int sceneId)
-    //{
-    //    SceneManager.LoadScene(sceneId);
-    //}
+    void LoadScene(int sceneId)
+    {
+        SceneManager.LoadScene(sceneId);
+    }
 
-    //public void LoadNextlevel()
-    //{
-    //    nextScene = SceneManager.GetActiveScene().buildIndex + 1;
-    //    LoadScene(nextScene);
-    //    _gameStateManager.SwitchToState(_gameStateManager.gameState_GamePlay);       
-    //}
-    //
-    //
-    //public void LoadMainMenuScene()
-    //{
-    //    LoadScene(0);
-    //    _gameStateManager.SwitchToState(_gameStateManager.gameState_GameInit);
-    //}
-    //
-    //public void ReloadCurrentScene()
-    //{
-    //    LoadScene(SceneManager.GetActiveScene().buildIndex);
-    //    _gameStateManager.SwitchToState(_gameStateManager.gameState_GamePlay);
-    //}
+    public void LoadNextlevel()
+    {
+        nextScene = SceneManager.GetActiveScene().buildIndex + 1;
+        LoadScene(nextScene);
+        _gameStateManager.SwitchToState(_gameStateManager.gameState_GamePlay);       
+    }
+
+
+    public void LoadMainMenuScene()
+    {
+        LoadScene(0);
+        _gameStateManager.SwitchToState(_gameStateManager.gameState_GameInit);
+    }
+
+    public void ReloadCurrentScene()
+    {
+        LoadScene(SceneManager.GetActiveScene().buildIndex);
+        _gameStateManager.SwitchToState(_gameStateManager.gameState_GamePlay);
+    }
 
     public void QuitGame()
     {
@@ -82,32 +79,36 @@ public class LevelManager : MonoBehaviour
                 break;
         }
 
-        StartSceneLoad(sceneName);
+        StartCoroutine(WaitForScreenLoad(sceneName));   
     }
 
-    private void StartSceneLoad(string sceneName)
+    private IEnumerator WaitForScreenLoad(string sceneName)
     {
-        sceneLoad = SceneManager.LoadSceneAsync(sceneName);
-        sceneLoad.completed += OperationComplete;
+        yield return new WaitForSeconds(_uIManager.fadeTime);
+        Debug.Log("Loading Scene Starting");
+
+        AsyncOperation operation = SceneManager.LoadSceneAsync(sceneName);
+        operation.completed += OperationCompleted;
+        scenesToLoad.Add(operation);
     }
 
     public float GetLoadingProgress()
     {
-        return sceneLoad.progress;
+        float totalprogress = 0;
+
+        foreach (AsyncOperation operation in scenesToLoad)
+        {
+            totalprogress += operation.progress;
+        }
+
+        return totalprogress / scenesToLoad.Count;
     }
 
-    private void OperationComplete(AsyncInstantiateOperation operation)
+    private void OperationCompleted(AsyncOperation operation)
     {
-        if (SceneManager.GetActiveScene() == SceneManager.GetSceneByName("MainMenu"))
-        {
-            _uIManager.DisableLoadScreen(_uIManager.mainMenuUI);
-        }
-        else if (SceneManager.GetActiveScene() == SceneManager.GetSceneByName("TestLevel"))
-        {
-            _uIManager.DisableLoadScreen(_uIManager.gamePlayUI);
-        }
+        scenesToLoad.Remove(operation);
+        operation.completed -= OperationCompleted;
     }
 }
-
 
 
